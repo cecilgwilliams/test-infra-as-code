@@ -1,0 +1,12 @@
+[project]
+name = "demos"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "cfn-lint>=1.46.0",
+    "checkov>=2.2.231",
+    "setuptools<70.0.0",
+    "taskcat>=0.9.58",
+]

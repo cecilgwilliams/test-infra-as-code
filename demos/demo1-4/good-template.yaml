@@ -1,0 +1,66 @@
+# good-template.yaml
+# Fixed version of bad-template.yaml.
+# Run: cfn-lint good-template.yaml
+#      checkov -f good-template.yaml --framework cloudformation
+# Expected result: passes with no errors
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: S3 bucket with intentional fixes (demo)
+
+Resources:
+  MyLogsBucket:  # Separate bucket to receive access logs for MyBucket
+    Type: AWS::S3::Bucket
+    # checkov:skip=CKV_AWS_18: logging buckets do not log to themselves
+    Properties:
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
+  MyBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      OwnershipControls:  # Correct replacement for legacy AccessControl
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:  # Fix for CKV_AWS_19
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:  # Fix for CKV_AWS_21
+        Status: Enabled
+      LoggingConfiguration:  # Fix for CKV_AWS_18
+        DestinationBucketName: !Ref MyLogsBucket
+
+  MyBucketPolicy:  # Correct: separate resource instead of invalid BucketPolicy property
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MyBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt MyBucket.Arn
+              - !Sub "${MyBucket.Arn}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false

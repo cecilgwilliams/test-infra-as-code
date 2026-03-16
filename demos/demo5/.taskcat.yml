@@ -1,0 +1,25 @@
+# .taskcat.yml
+# TaskCat configuration for testing CloudFormation templates.
+#
+# Lint only (no deploy):  taskcat lint
+# Full integration test:  taskcat test run
+#   - Deploys stacks in each region
+#   - Verifies CREATE_COMPLETE
+#   - Tears down all stacks
+#   - Generates HTML report in taskcat_outputs/
+
+project:
+  name: my-infrastructure
+  regions:
+    - us-east-1
+    - us-west-2
+
+
+tests:
+  default:
+    template: s3-bucket.yaml
+    regions:
+      - us-east-1
+      - us-west-2
+    parameters:
+      Environment: test
