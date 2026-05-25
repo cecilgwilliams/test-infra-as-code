@@ -1,0 +1,22 @@
+# s3-rules.guard
+# cfn-guard policy rules for S3 buckets.
+# Run: cfn-guard validate -r s3-rules.guard -d bad-template.yaml   (fails)
+#      cfn-guard validate -r s3-rules.guard -d good-template.yaml   (passes)
+
+let s3_buckets = Resources.*[ Type == "AWS::S3::Bucket" ]
+
+rule S3_PUBLIC_ACCESS_BLOCKED when %s3_buckets !empty {
+  %s3_buckets.Properties.PublicAccessBlockConfiguration.BlockPublicAcls == true
+    << S3 bucket must block public ACLs >>
+  %s3_buckets.Properties.PublicAccessBlockConfiguration.BlockPublicPolicy == true
+    << S3 bucket must block public policies >>
+  %s3_buckets.Properties.PublicAccessBlockConfiguration.IgnorePublicAcls == true
+    << S3 bucket must ignore public ACLs >>
+  %s3_buckets.Properties.PublicAccessBlockConfiguration.RestrictPublicBuckets == true
+    << S3 bucket must restrict public buckets >>
+}
+
+rule S3_OWNERSHIP_CONTROLS when %s3_buckets !empty {
+  %s3_buckets.Properties.OwnershipControls exists
+    << S3 bucket must have OwnershipControls configured >>
+}

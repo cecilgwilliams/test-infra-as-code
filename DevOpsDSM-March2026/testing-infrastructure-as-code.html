@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Testing Infrastructure as Code</title>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #0a0e14;
+  --surface: #0d1117;
+  --border: #1b2430;
+  --accent: #00ff9d;
+  --accent-glow: rgba(0,255,157,0.15);
+  --accent-dim: rgba(0,255,157,0.5);
+  --text: #e6edf3;
+  --text-dim: #7d8590;
+  --text-bright: #ffffff;
+  --red-dot: #ff5f57;
+  --yellow-dot: #febc2e;
+  --green-dot: #28c840;
+  --font-body: 'Satoshi', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+html {
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* ===== GRID BACKGROUND ===== */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image:
+    linear-gradient(rgba(0,255,157,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,157,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ===== GLOW ORBS ===== */
+.glow-orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+}
+.glow-orb-1 {
+  width: 400px; height: 400px;
+  background: rgba(0,255,157,0.06);
+  top: -100px; right: -100px;
+}
+.glow-orb-2 {
+  width: 300px; height: 300px;
+  background: rgba(0,255,157,0.04);
+  bottom: -50px; left: -50px;
+}
+
+/* ===== PROGRESS BAR ===== */
+#progress-bar {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+  z-index: 1000;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+/* ===== SLIDE COUNTER ===== */
+#slide-counter {
+  position: fixed;
+  bottom: clamp(12px, 2vh, 24px);
+  left: clamp(16px, 2vw, 32px);
+  font-family: var(--font-mono);
+  font-size: clamp(0.65rem, 1vw, 0.85rem);
+  color: var(--text-dim);
+  z-index: 1000;
+  letter-spacing: 0.05em;
+}
+
+/* ===== NAV DOTS ===== */
+#nav-dots {
+  position: fixed;
+  right: clamp(8px, 1.5vw, 20px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 1000;
+}
+.nav-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  border: 1px solid var(--text-dim);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0;
+}
+.nav-dot.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+  transform: scale(1.3);
+}
+
+/* ===== SLIDE BASE ===== */
+.slide {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  scroll-snap-align: start;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: clamp(24px, 4vh, 60px) clamp(24px, 6vw, 120px);
+  z-index: 1;
+}
+
+.slide-inner {
+  max-width: 1100px;
+  width: 100%;
+}
+
+/* ===== ANIMATIONS ===== */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.visible .reveal {
+  opacity: 1;
+  transform: translateY(0);
+}
+.visible .reveal.d1 { transition-delay: 0.1s; }
+.visible .reveal.d2 { transition-delay: 0.2s; }
+.visible .reveal.d3 { transition-delay: 0.3s; }
+.visible .reveal.d4 { transition-delay: 0.4s; }
+.visible .reveal.d5 { transition-delay: 0.5s; }
+.visible .reveal.d6 { transition-delay: 0.6s; }
+.visible .reveal.d7 { transition-delay: 0.7s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  html { scroll-behavior: auto; }
+}
+
+/* ===== TYPOGRAPHY ===== */
+.slide-title {
+  font-family: var(--font-body);
+  font-size: clamp(1.6rem, 4vw, 2.8rem);
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: clamp(16px, 3vh, 36px);
+  line-height: 1.2;
+}
+.slide-title .accent {
+  color: var(--accent);
+}
+
+.slide-subtitle {
+  font-size: clamp(1.05rem, 2vw, 1.4rem);
+  color: var(--text-dim);
+  margin-bottom: clamp(8px, 1.5vh, 16px);
+}
+
+.bullet-list {
+  list-style: none;
+  padding: 0;
+}
+.bullet-list li {
+  font-size: clamp(1rem, 2vw, 1.5rem);
+  padding: clamp(6px, 1vh, 12px) 0;
+  padding-left: clamp(16px, 2vw, 28px);
+  position: relative;
+  color: var(--text);
+  line-height: 1.4;
+}
+.bullet-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: clamp(14px, 1.8vh, 22px);
+  width: 6px; height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+.bullet-list li.emoji-bullet::before {
+  display: none;
+}
+.bullet-list li .emoji {
+  margin-right: 8px;
+}
+
+/* ===== BLINKING CURSOR ===== */
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--accent);
+  margin-left: 4px;
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ===== TERMINAL PROMPT ===== */
+.terminal-prompt {
+  font-family: var(--font-mono);
+  font-size: clamp(0.9rem, 1.6vw, 1.2rem);
+  color: var(--text-dim);
+  margin-top: clamp(12px, 2vh, 24px);
+}
+.terminal-prompt .prompt-symbol {
+  color: var(--accent);
+  margin-right: 8px;
+}
+.terminal-prompt .prompt-text {
+  color: var(--text);
+}
+
+/* ===== CODE BLOCKS ===== */
+.code-window {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: clamp(8px, 1.5vh, 16px) 0;
+  width: 100%;
+}
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: rgba(27,36,48,0.6);
+  border-bottom: 1px solid var(--border);
+}
+.code-dots {
+  display: flex;
+  gap: 6px;
+}
+.code-dots span {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+}
+.code-dots span:nth-child(1) { background: var(--red-dot); }
+.code-dots span:nth-child(2) { background: var(--yellow-dot); }
+.code-dots span:nth-child(3) { background: var(--green-dot); }
+.code-lang {
+  font-family: var(--font-mono);
+  font-size: clamp(0.75rem, 1.2vw, 0.9rem);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.code-body {
+  padding: clamp(10px, 1.5vh, 18px) clamp(12px, 2vw, 20px);
+  overflow-x: auto;
+}
+.code-body pre {
+  font-family: var(--font-mono);
+  font-size: clamp(0.75rem, 1.4vw, 1rem);
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre;
+  margin: 0;
+}
+.code-body .cm { color: var(--text-dim); }
+.code-body .kw { color: #ff7b72; }
+.code-body .str { color: var(--accent); }
+.code-body .fn { color: #d2a8ff; }
+.code-body .type { color: #79c0ff; }
+.code-body .ok { color: var(--accent); }
+.code-body .err { color: #ff5f57; }
+.code-body .warn { color: #febc2e; }
+.code-body .sym { color: var(--text-dim); }
+
+/* ===== CARDS ===== */
+.card-grid {
+  display: grid;
+  gap: clamp(10px, 1.5vw, 20px);
+}
+.card-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+.card-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: clamp(12px, 2vh, 24px) clamp(12px, 2vw, 20px);
+}
+.card-label {
+  font-family: var(--font-mono);
+  font-size: clamp(0.75rem, 1.1vw, 0.9rem);
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: clamp(4px, 0.8vh, 10px);
+}
+.card-title {
+  font-size: clamp(1rem, 1.8vw, 1.3rem);
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: clamp(4px, 0.8vh, 8px);
+}
+.card-text {
+  font-size: clamp(0.85rem, 1.4vw, 1.1rem);
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+/* ===== TABLE ===== */
+.terminal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: clamp(0.9rem, 1.5vw, 1.2rem);
+  font-family: var(--font-mono);
+}
+.terminal-table th {
+  text-align: left;
+  color: var(--accent);
+  font-weight: 500;
+  padding: clamp(6px, 1vh, 12px) clamp(8px, 1vw, 16px);
+  border-bottom: 2px solid var(--accent);
+}
+.terminal-table td {
+  padding: clamp(5px, 0.8vh, 10px) clamp(8px, 1vw, 16px);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.terminal-table tr:last-child td { border-bottom: none; }
+
+/* ===== PYRAMID ===== */
+.pyramid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(4px, 0.6vh, 8px);
+  margin: clamp(8px, 2vh, 20px) 0;
+}
+.pyramid-layer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 1px solid var(--accent);
+  background: rgba(0,255,157,0.04);
+  padding: clamp(8px, 1.2vh, 16px) clamp(12px, 2vw, 24px);
+  font-size: clamp(0.8rem, 1.4vw, 1rem);
+  position: relative;
+  clip-path: polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%);
+}
+.pyramid-layer:nth-child(1) {
+  width: 40%;
+  background: rgba(0,255,157,0.12);
+}
+.pyramid-layer:nth-child(2) {
+  width: 65%;
+  background: rgba(0,255,157,0.08);
+}
+.pyramid-layer:nth-child(3) {
+  width: 90%;
+  background: rgba(0,255,157,0.04);
+}
+.pyramid-label-side {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: clamp(0.7rem, 1.1vw, 0.85rem);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.pyramid-label-left { right: calc(100% + 12px); }
+.pyramid-label-right { left: calc(100% + 12px); }
+
+/* ===== PIPELINE ===== */
+.pipeline {
+  display: flex;
+  gap: clamp(8px, 1.5vw, 16px);
+  align-items: stretch;
+}
+.pipeline-stage {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: clamp(10px, 1.5vh, 20px) clamp(10px, 1.5vw, 16px);
+}
+.pipeline-stage-title {
+  font-family: var(--font-mono);
+  font-size: clamp(0.8rem, 1.2vw, 1rem);
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: clamp(6px, 1vh, 12px);
+}
+.pipeline-stage ul {
+  list-style: none;
+  padding: 0;
+}
+.pipeline-stage li {
+  font-size: clamp(0.75rem, 1.2vw, 0.95rem);
+  color: var(--text);
+  padding: clamp(2px, 0.4vh, 4px) 0;
+  padding-left: 14px;
+  position: relative;
+}
+.pipeline-stage li::before {
+  content: '>';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+/* ===== STEPS ===== */
+.steps {
+  counter-reset: step;
+}
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(10px, 1.5vw, 20px);
+  padding: clamp(6px, 1vh, 12px) 0;
+}
+.step-num {
+  counter-increment: step;
+  font-family: var(--font-mono);
+  font-size: clamp(0.95rem, 1.5vw, 1.3rem);
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+  width: clamp(24px, 3vw, 36px);
+  height: clamp(24px, 3vw, 36px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+}
+.step-text {
+  font-size: clamp(0.9rem, 1.5vw, 1.2rem);
+  color: var(--text);
+  padding-top: clamp(2px, 0.3vh, 4px);
+}
+
+/* ===== CHECKLIST ===== */
+.checklist-group-title {
+  font-family: var(--font-mono);
+  font-size: clamp(0.85rem, 1.3vw, 1.1rem);
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: clamp(4px, 0.6vh, 8px);
+  margin-top: clamp(8px, 1.2vh, 16px);
+}
+.checklist-group-title:first-child { margin-top: 0; }
+.checklist li {
+  font-size: clamp(0.8rem, 1.3vw, 1rem);
+  padding: clamp(2px, 0.3vh, 4px) 0;
+  padding-left: 20px;
+  position: relative;
+  color: var(--text);
+  list-style: none;
+}
+.checklist li::before {
+  content: '[ ]';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: clamp(0.7rem, 1.1vw, 0.85rem);
+}
+
+/* ===== TITLE SLIDE SPECIFIC ===== */
+.title-slide .main-title {
+  font-size: clamp(2rem, 5vw, 3.6rem);
+  font-weight: 700;
+  color: var(--text-bright);
+  line-height: 1.15;
+  margin-bottom: clamp(8px, 1.5vh, 16px);
+}
+.title-slide .main-title .accent {
+  color: var(--accent);
+  text-shadow: 0 0 30px var(--accent-glow);
+}
+.title-slide .main-subtitle {
+  font-size: clamp(1.05rem, 2.2vw, 1.5rem);
+  color: var(--text-dim);
+  margin-bottom: clamp(16px, 3vh, 40px);
+}
+.title-slide .author {
+  font-size: clamp(1rem, 1.8vw, 1.3rem);
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ===== Q&A / THANK YOU ===== */
+.big-text {
+  font-size: clamp(1.8rem, 4.5vw, 3.2rem);
+  font-weight: 700;
+  color: var(--text-bright);
+  text-align: center;
+}
+.center-text { text-align: center; }
+.resource-link {
+  font-family: var(--font-mono);
+  font-size: clamp(0.85rem, 1.4vw, 1.1rem);
+  color: var(--accent);
+  display: block;
+  padding: clamp(3px, 0.5vh, 6px) 0;
+}
+
+/* ===== RESPONSIVE HEIGHT ===== */
+@media (max-height: 700px) {
+  .slide { padding: clamp(16px, 3vh, 40px) clamp(20px, 5vw, 100px); }
+  .slide-title { margin-bottom: clamp(10px, 2vh, 24px); }
+  .code-body { padding: clamp(6px, 1vh, 12px) clamp(10px, 1.5vw, 16px); }
+  .code-body pre { font-size: clamp(0.65rem, 1.2vw, 0.9rem); line-height: 1.45; }
+}
+@media (max-height: 600px) {
+  .slide { padding: clamp(12px, 2vh, 30px) clamp(16px, 4vw, 80px); }
+  .bullet-list li { padding: clamp(3px, 0.6vh, 8px) 0; padding-left: clamp(14px, 1.8vw, 24px); }
+  .card { padding: clamp(8px, 1.2vh, 16px) clamp(8px, 1.2vw, 14px); }
+}
+@media (max-height: 500px) {
+  .slide { padding: clamp(8px, 1.5vh, 20px) clamp(12px, 3vw, 60px); }
+  .slide-title { font-size: clamp(1.2rem, 3.5vw, 2rem); margin-bottom: clamp(6px, 1vh, 14px); }
+  .code-body pre { font-size: clamp(0.6rem, 1.1vw, 0.8rem); line-height: 1.35; }
+}
+
+@media (max-width: 768px) {
+  .card-grid.cols-2, .card-grid.cols-3 { grid-template-columns: 1fr; }
+  .pipeline { flex-direction: column; }
+  .pyramid-label-side { display: none; }
+  #nav-dots { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Glow orbs -->
+<div class="glow-orb glow-orb-1"></div>
+<div class="glow-orb glow-orb-2"></div>
+
+<!-- Progress bar -->
+<div id="progress-bar"></div>
+
+<!-- Slide counter -->
+<div id="slide-counter">01 / 29</div>
+
+<!-- Nav dots -->
+<nav id="nav-dots"></nav>
+
+<!-- ==================== SLIDE 1: Title ==================== -->
+<section class="slide title-slide" id="slide-1">
+  <div class="slide-inner">
+    <div class="main-title reveal">Testing <span class="accent">Infrastructure</span> as Code</div>
+    <div class="main-subtitle reveal d1">Ensuring Reliability in Terraform and CloudFormation</div>
+    <div class="author reveal d2">Cecil Williams</div>
+    <div class="terminal-prompt reveal d3">
+      <span class="prompt-symbol">$</span>
+      <span class="prompt-text">terraform test --run-all</span>
+      <span class="cursor"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 2: The Problem ==================== -->
+<section class="slide" id="slide-2">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">The <span class="accent">Problem</span></h2>
+    <ul class="bullet-list">
+      <li class="emoji-bullet reveal d1"><span class="emoji">&#x1F4B0;</span> Infrastructure failures are expensive</li>
+      <li class="emoji-bullet reveal d2"><span class="emoji">&#x1F4C8;</span> Manual testing doesn't scale</li>
+      <li class="emoji-bullet reveal d3"><span class="emoji">&#x1F5A5;&#xFE0F;</span> "It worked on my machine" syndrome</li>
+      <li class="emoji-bullet reveal d4"><span class="emoji">&#x1F914;</span> Traditional software has tests &mdash; why not infrastructure?</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 3: Testing Pyramid ==================== -->
+<section class="slide" id="slide-3">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Testing Pyramid for <span class="accent">IaC</span></h2>
+    <div class="pyramid reveal d1">
+      <div class="pyramid-layer">
+        <span class="pyramid-label-side pyramid-label-right" style="color:var(--text-dim);">Slow, expensive, run less frequently</span>
+        <strong>Integration Tests</strong>
+      </div>
+      <div class="pyramid-layer">
+        <span class="pyramid-label-side pyramid-label-right" style="color:var(--text-dim);">Medium speed / cost</span>
+        <strong>Unit Tests</strong>
+      </div>
+      <div class="pyramid-layer">
+        <span class="pyramid-label-side pyramid-label-right" style="color:var(--text-dim);">Fast, cheap, run frequently</span>
+        <strong>Static Analysis</strong>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 4: What We'll Cover ==================== -->
+<section class="slide" id="slide-4">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">What We'll <span class="accent">Cover</span></h2>
+    <ul class="bullet-list">
+      <li class="reveal d1">Static analysis &mdash; catching errors before deploy (CFN &amp; Terraform)</li>
+      <li class="reveal d2">Unit &amp; policy testing &mdash; validating logic without real infra</li>
+      <li class="reveal d3">Integration testing &mdash; deploying real resources, asserting state</li>
+      <li class="reveal d4">TDD &amp; BDD &mdash; writing tests first, behavior-driven specs</li>
+      <li class="reveal d5">When to use each &mdash; and a CFN vs. Terraform comparison</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 5: CFN Static Analysis ==================== -->
+<section class="slide" id="slide-5">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">CloudFormation &mdash; <span class="accent">Static Analysis</span></h2>
+    <p class="slide-subtitle reveal d1">Tools: <strong>cfn-lint</strong>, <strong>checkov</strong>, <strong>cfn-guard</strong></p>
+    <div class="code-window reveal d2">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">yaml</div>
+      </div>
+      <div class="code-body"><pre><span class="cm"># bad-template.yaml</span>
+<span class="kw">Resources</span>:
+  <span class="type">MyBucket</span>:
+    <span class="kw">Type</span>: <span class="str">AWS::S3::Bucket</span>
+    <span class="kw">Properties</span>:
+      <span class="kw">AccessControl</span>: <span class="str">Public</span>       <span class="cm"># Invalid enum value</span>
+      <span class="kw">BucketPolicy</span>: <span class="str">my-policy</span>    <span class="cm"># Invalid property!</span></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 6: Demo 1 cfn-lint ==================== -->
+<section class="slide" id="slide-6">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 1: <span class="accent">cfn-lint</span> in Action</h2>
+    <div class="code-window reveal d1">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">bash</div>
+      </div>
+      <div class="code-body"><pre><span class="cm"># Install</span>
+<span class="kw">pip install</span> cfn-lint
+
+<span class="cm"># Run against bad template</span>
+<span class="kw">cfn-lint</span> bad-template.yaml
+
+<span class="cm"># Output shows errors:</span>
+<span class="err"># E3045: AccessControl requires OwnershipControls to be configured</span>
+<span class="err"># E3030: "Public" is not a valid value for AccessControl</span>
+<span class="warn"># W3045: AccessControl is legacy - use AWS::S3::BucketPolicy instead</span>
+<span class="err"># E3002: BucketPolicy is not a valid property of AWS::S3::Bucket</span>
+
+<span class="cm"># Fix template, run again - passes!</span> <span class="ok">&#x2713;</span></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 7: Demo 2 checkov ==================== -->
+<section class="slide" id="slide-7">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 2: <span class="accent">checkov</span> Security Scanning</h2>
+    <p class="slide-subtitle reveal d1">Cross-platform: scans CloudFormation, Terraform, Kubernetes, and more</p>
+    <div class="code-window reveal d2">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">bash</div>
+      </div>
+      <div class="code-body"><pre><span class="cm"># Install</span>
+<span class="kw">pip install</span> checkov
+
+<span class="cm"># Scan bad template</span>
+<span class="kw">checkov</span> -f bad-template.yaml --framework cloudformation
+
+<span class="cm"># Output - failed checks:</span>
+<span class="err"># FAILED: CKV_AWS_19 "Ensure S3 bucket has server-side encryption"</span>
+<span class="err"># FAILED: CKV_AWS_21 "Ensure S3 bucket has versioning enabled"</span>
+<span class="err"># FAILED: CKV_AWS_53 "Ensure S3 bucket blocks public ACLs"</span>
+<span class="err"># FAILED: CKV_AWS_18 "Ensure S3 bucket has access logging"</span>
+
+<span class="cm"># Fix template, run again - passes!</span> <span class="ok">&#x2713;</span></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 8: Demo 3 cfn-guard Rules ==================== -->
+<section class="slide" id="slide-8">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 3: <span class="accent">cfn-guard</span> Policy as Code</h2>
+    <p class="slide-subtitle reveal d1">Write <em>your own</em> rules to enforce organisational standards &mdash; not just known CVEs</p>
+    <div class="code-window reveal d2">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">bash</div>
+      </div>
+      <div class="code-body"><pre><span class="cm"># Install</span>
+<span class="kw">brew install</span> cloudformation-guard
+
+<span class="cm"># s3-rules.guard</span>
+<span class="kw">let</span> s3_buckets = Resources.*[ Type == <span class="str">"AWS::S3::Bucket"</span> ]
+
+<span class="kw">rule</span> <span class="fn">S3_PUBLIC_ACCESS_BLOCKED</span> <span class="kw">when</span> %s3_buckets !empty {
+  %s3_buckets.Properties.PublicAccessBlockConfiguration.BlockPublicAcls == <span class="type">true</span>
+    &lt;&lt; <span class="warn">S3 bucket must block public ACLs</span> &gt;&gt;
+  %s3_buckets.Properties.PublicAccessBlockConfiguration.BlockPublicPolicy == <span class="type">true</span>
+    &lt;&lt; <span class="warn">S3 bucket must block public policies</span> &gt;&gt;
+}
+
+<span class="kw">rule</span> <span class="fn">S3_OWNERSHIP_CONTROLS</span> <span class="kw">when</span> %s3_buckets !empty {
+  %s3_buckets.Properties.OwnershipControls exists
+    &lt;&lt; <span class="warn">S3 bucket must have OwnershipControls configured</span> &gt;&gt;
+}</pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 9: Demo 3 cfn-guard Run ==================== -->
+<section class="slide" id="slide-9">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 3: <span class="accent">cfn-guard</span> in Action</h2>
+    <p class="slide-subtitle reveal d1">Validate templates against your rules &mdash; bad fails, good passes</p>
+    <div class="code-window reveal d2">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">bash</div>
+      </div>
+      <div class="code-body"><pre><span class="sym">$</span> <span class="kw">cfn-guard</span> validate -r s3-rules.guard -d bad-template.yaml
+<span class="err">FAILED: S3_PUBLIC_ACCESS_BLOCKED - S3 bucket must block public ACLs</span>
+<span class="err">FAILED: S3_OWNERSHIP_CONTROLS   - S3 bucket must have OwnershipControls</span>
+
+<span class="sym">$</span> <span class="kw">cfn-guard</span> validate -r s3-rules.guard -d good-template.yaml
+<span class="ok">PASS: S3_PUBLIC_ACCESS_BLOCKED</span>
+<span class="ok">PASS: S3_OWNERSHIP_CONTROLS</span></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 10: CFN Pre-deployment Validation ==================== -->
+<section class="slide" id="slide-10">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 4: <span class="accent">TaskCat</span> Pre-deployment Validation</h2>
+    <p class="slide-subtitle reveal d1">Tool: <strong>TaskCat</strong> &mdash; <code style="color:var(--accent);">taskcat lint</code> validates templates, parameters, and regional compatibility without deploying</p>
+    <div class="code-window reveal d2">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">yaml</div>
+      </div>
+      <div class="code-body"><pre><span class="cm"># .taskcat.yml</span>
+<span class="kw">project</span>:
+  <span class="kw">name</span>: <span class="str">my-infrastructure</span>
+<span class="kw">tests</span>:
+  <span class="type">default</span>:
+    <span class="kw">template</span>: <span class="str">s3-bucket.yaml</span>
+    <span class="kw">regions</span>:
+      - <span class="str">us-east-1</span>
+      - <span class="str">us-west-2</span>
+    <span class="kw">parameters</span>:
+      <span class="kw">Environment</span>: <span class="str">test</span></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 11: CFN Integration Testing ==================== -->
+<section class="slide" id="slide-11">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 5: <span class="accent">TaskCat</span> Integration Testing</h2>
+    <p class="slide-subtitle reveal d1">TaskCat also does full integration: deploys real stacks, verifies CREATE_COMPLETE, tears down &mdash; <strong>Note:</strong> requires Docker</p>
+    <div class="code-window reveal d2">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">bash</div>
+      </div>
+      <div class="code-body"><pre><span class="cm"># Run full integration test (deploy &rarr; verify &rarr; teardown)</span>
+<span class="sym">$</span> <span class="kw">taskcat</span> test run
+
+<span class="ok"> &#x2714; </span> <span class="str">default</span> <span class="cm">us-east-1</span>  CREATE_COMPLETE
+<span class="ok"> &#x2714; </span> <span class="str">default</span> <span class="cm">us-west-2</span>  CREATE_COMPLETE
+<span class="ok"> &#x2714; </span> Stacks deleted successfully
+
+<span class="cm"># Generate HTML report</span>
+<span class="sym">$</span> <span class="kw">ls</span> taskcat_outputs/
+  index.html  <span class="cm"># Test results dashboard</span>
+  <span class="str">default</span>/    <span class="cm"># Per-test logs &amp; resource details</span></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 12: Terraform Landscape ==================== -->
+<section class="slide" id="slide-12">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Terraform &mdash; The <span class="accent">Testing Landscape</span></h2>
+    <ul class="bullet-list">
+      <li class="reveal d1">More mature testing ecosystem than CloudFormation</li>
+      <li class="reveal d2">Multiple layers of testing available</li>
+      <li class="reveal d3">Strong community support</li>
+      <li class="reveal d4">Built-in testing capabilities</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 13: Terraform Static Analysis ==================== -->
+<section class="slide" id="slide-13">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Terraform &mdash; <span class="accent">Static Analysis</span></h2>
+    <p class="slide-subtitle reveal d1"><strong>Built-in:</strong> terraform validate, terraform fmt, terraform plan &nbsp;|&nbsp; <strong>Third-party:</strong> tflint, tfsec / checkov</p>
+    <div class="code-window reveal d2">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">hcl</div>
+      </div>
+      <div class="code-body"><pre><span class="cm"># main.tf</span>
+<span class="kw">variable</span> <span class="str">"bucket_name"</span> {
+  <span class="cm"># no type defined!</span>
+  <span class="kw">default</span> = <span class="str">"my-bucket"</span>
+}
+
+<span class="kw">resource</span> <span class="str">"aws_s3_bucket"</span> <span class="str">"bad"</span> {
+  <span class="kw">bucket</span> = <span class="kw">var</span>.bucket_name
+  <span class="cm"># Missing encryption, versioning, etc.</span>
+}</pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 14: Demo 2 Terraform Static ==================== -->
+<section class="slide" id="slide-14">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 6: <span class="accent">Terraform Static Analysis</span></h2>
+    <div class="code-window reveal d1">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">bash</div>
+      </div>
+      <div class="code-body"><pre><span class="cm"># Run validation</span>
+<span class="kw">terraform</span> validate  <span class="ok"># &#x2713; Syntax check</span>
+<span class="kw">terraform</span> fmt -check  <span class="ok"># &#x2713; Format check</span>
+<span class="kw">tflint</span> --init <span class="warn">&amp;&amp; tflint</span>  <span class="warn"># &#x26A0; Lint warnings</span>
+<span class="kw">tfsec</span> .  <span class="err"># &#x274C; Security issues found!</span>
+
+<span class="cm"># Output from tflint:</span>
+<span class="warn"># Warning: `bucket_name` variable has no type (terraform_typed_variables)</span>
+
+<span class="cm"># Output from tfsec:</span>
+<span class="err"># CRITICAL AWS017: S3 Bucket does not have encryption enabled</span>
+<span class="err"># HIGH     AWS002: S3 Bucket does not have logging enabled</span>
+<span class="warn"># MEDIUM   AWS077: S3 Data should be versioned</span></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 15: Policy Testing ==================== -->
+<section class="slide" id="slide-15">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Terraform &mdash; <span class="accent">Policy Testing</span></h2>
+    <p class="slide-subtitle reveal d1">Tool: <strong>Open Policy Agent (OPA)</strong> &mdash; <code style="color:var(--accent);">brew install opa</code> &nbsp;|&nbsp; Write rules in Rego that evaluate against a Terraform plan</p>
+    <div class="code-window reveal d2">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">rego</div>
+      </div>
+      <div class="code-body"><pre><span class="cm"># s3_encrypted.rego</span>
+<span class="kw">deny</span>[msg] {
+  resource := <span class="type">input</span>.resource_changes[_]
+  resource.type == <span class="str">"aws_s3_bucket"</span>
+  <span class="kw">not</span> resource.change.after.server_side_encryption_configuration
+  msg := <span class="str">"S3 buckets must be encrypted"</span>
+}</pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 16: Policy Testing Execution ==================== -->
+<section class="slide" id="slide-16">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Terraform &mdash; <span class="accent">Policy Testing</span> in Action</h2>
+    <p class="slide-subtitle reveal d1">Export the plan as JSON, then evaluate your Rego rules against it</p>
+    <div class="code-window reveal d2">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">bash</div>
+      </div>
+      <div class="code-body"><pre><span class="cm"># 1. Generate plan JSON</span>
+<span class="sym">$</span> <span class="kw">terraform</span> plan -out=tfplan
+<span class="sym">$</span> <span class="kw">terraform</span> show -json tfplan &gt; tfplan.json
+
+<span class="cm"># 2. Evaluate policy</span>
+<span class="sym">$</span> <span class="kw">opa</span> eval -d s3_encrypted.rego -i tfplan.json <span class="str">"data.terraform.deny"</span>
+
+<span class="cm"># Output (bad config - policy violation):</span>
+<span class="err">{
+  "result": [{
+    "expressions": [{
+      "value": ["S3 buckets must be encrypted"]
+    }]
+  }]
+}</span>
+
+<span class="cm"># Output (good config - policy passes):</span>
+<span class="ok">{ "result": [{ "expressions": [{ "value": [] }] }] }</span></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 17: Terratest Intro ==================== -->
+<section class="slide" id="slide-17">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Terratest: <span class="accent">Integration Testing</span></h2>
+    <p class="slide-subtitle reveal d1"><strong>What is Terratest?</strong> &mdash; <strong>Setup:</strong> <code style="color:var(--accent);">cd test &amp;&amp; go mod tidy</code> before running tests</p>
+    <ul class="bullet-list">
+      <li class="reveal d1">Go library for testing infrastructure</li>
+      <li class="reveal d2">Deploys real resources to cloud</li>
+      <li class="reveal d3">Makes assertions about infrastructure</li>
+      <li class="reveal d4">Automatic cleanup with <code>defer</code></li>
+      <li class="reveal d5">Retry logic for eventual consistency</li>
+      <li class="reveal d6">Parallel test execution</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 18: Demo 3 Terratest Structure ==================== -->
+<section class="slide" id="slide-18">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Terratest: <span class="accent">Test Structure</span></h2>
+    <div class="code-window reveal d1">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">go</div>
+      </div>
+      <div class="code-body"><pre><span class="kw">func</span> <span class="fn">TestS3BucketCreation</span>(t *<span class="type">testing.T</span>) {
+  terraformOptions := &amp;<span class="type">terraform.Options</span>{
+    <span class="kw">TerraformDir</span>: <span class="str">"../"</span>,
+    <span class="kw">EnvVars</span>: <span class="kw">map</span>[<span class="type">string</span>]<span class="type">string</span>{
+      <span class="str">"AWS_PROFILE"</span>: <span class="str">"your-profile"</span>,
+    },
+  }
+  <span class="kw">defer</span> terraform.<span class="fn">Destroy</span>(t, terraformOptions)
+  terraform.<span class="fn">InitAndApply</span>(t, terraformOptions)
+  bucketName := terraform.<span class="fn">Output</span>(t, terraformOptions, <span class="str">"bucket_name"</span>)
+  aws.<span class="fn">AssertS3BucketExists</span>(t, <span class="str">"us-east-1"</span>, bucketName)
+}</pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 19: Demo 4 Live Terratest ==================== -->
+<section class="slide" id="slide-19">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 7: <span class="accent">Live Terratest</span> Execution</h2>
+    <div class="code-window reveal d1">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">terminal</div>
+      </div>
+      <div class="code-body"><pre><span class="sym">$</span> <span class="kw">cd</span> test
+<span class="sym">$</span> <span class="kw">AWS_PROFILE</span>=your-profile <span class="kw">go test</span> -v -timeout 30m
+<span class="ok">=== RUN   TestS3BucketCreation</span>
+TestS3BucketCreation Running: <span class="str">terraform init</span>
+TestS3BucketCreation Running: <span class="str">terraform apply</span>
+TestS3BucketCreation Bucket created: <span class="str">my-terraform-learning-bucket-bc6d5bf1</span>
+TestS3BucketCreation Verifying bucket exists...
+TestS3BucketCreation <span class="ok">&#x2713; Bucket verified</span>
+TestS3BucketCreation Running: <span class="str">terraform destroy</span>
+<span class="ok">--- PASS: TestS3BucketCreation (57.2s)</span>
+<span class="ok">PASS</span></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 20: Advanced Terratest ==================== -->
+<section class="slide" id="slide-20">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 8: Advanced Terratest: <span class="accent">Multiple Resources</span></h2>
+    <div class="code-window reveal d1">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">go</div>
+      </div>
+      <div class="code-body"><pre><span class="kw">func</span> <span class="fn">TestVPCWithSubnets</span>(t *<span class="type">testing.T</span>) {
+  <span class="cm">// Deploy VPC + Subnets</span>
+  terraform.<span class="fn">InitAndApply</span>(t, terraformOptions)
+  vpcID := terraform.<span class="fn">Output</span>(t, terraformOptions, <span class="str">"vpc_id"</span>)
+  <span class="cm">// Verify VPC exists</span>
+  vpc := aws.<span class="fn">GetVpcById</span>(t, vpcID, <span class="str">"us-east-1"</span>)
+  assert.<span class="fn">Equal</span>(t, <span class="str">"10.0.0.0/16"</span>, *vpc.CidrBlock)
+  <span class="cm">// Verify subnets</span>
+  subnets := aws.<span class="fn">GetSubnetsForVpc</span>(t, vpcID, <span class="str">"us-east-1"</span>)
+  assert.<span class="fn">Equal</span>(t, <span class="type">3</span>, <span class="fn">len</span>(subnets))
+}</pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 21: TDD Workflow ==================== -->
+<section class="slide" id="slide-21">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 9: <span class="accent">TDD Workflow</span></h2>
+    <div class="steps">
+      <div class="step-item reveal d1">
+        <div class="step-num">1</div>
+        <div class="step-text">Write failing test first</div>
+      </div>
+      <div class="step-item reveal d2">
+        <div class="step-num">2</div>
+        <div class="step-text">Run test &mdash; it fails (no versioning)</div>
+      </div>
+      <div class="step-item reveal d3">
+        <div class="step-num">3</div>
+        <div class="step-text">Add versioning to Terraform config</div>
+      </div>
+      <div class="step-item reveal d4">
+        <div class="step-num">4</div>
+        <div class="step-text">Run test &mdash; it passes</div>
+      </div>
+      <div class="step-item reveal d5">
+        <div class="step-num">5</div>
+        <div class="step-text">Static analysis catches typos</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 22: BDD Intro ==================== -->
+<section class="slide" id="slide-22">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">BDD for <span class="accent">Infrastructure</span></h2>
+    <p class="slide-subtitle reveal d1">Behavior-Driven Development meets Infrastructure as Code</p>
+    <div class="card-grid cols-3 reveal d2">
+      <div class="card">
+        <div class="card-label">What</div>
+        <div class="card-title">Gherkin Specs</div>
+        <div class="card-text">Describe infrastructure behavior in plain language with Given/When/Then &mdash; readable by the whole team</div>
+      </div>
+      <div class="card">
+        <div class="card-label">How</div>
+        <div class="card-title">godog + Terratest</div>
+        <div class="card-text">Cucumber for Go runs the specs; Terratest deploys real AWS resources and makes assertions</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Why</div>
+        <div class="card-title">Living Documentation</div>
+        <div class="card-text">Specs double as docs &mdash; if the test passes, the documentation is accurate</div>
+      </div>
+    </div>
+    <p class="slide-subtitle reveal d3" style="margin-top:clamp(12px,2vh,24px);text-align:center;font-size:clamp(0.6rem,1vw,0.8rem);"><em>Inspired by Stephen Nelson-Smith's "Test-Driven Infrastructure with Chef" (O'Reilly) &mdash; which pioneered BDD for infrastructure</em></p>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 23: BDD S3 Feature ==================== -->
+<section class="slide" id="slide-23">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 10: BDD <span class="accent">S3 Bucket</span> Feature Spec</h2>
+    <div class="code-window reveal d1">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">gherkin</div>
+      </div>
+      <div class="code-body"><pre><span class="cm"># features/s3_bucket.feature</span>
+<span class="kw">Feature:</span> <span class="str">Secure S3 bucket</span>
+  As a platform engineer
+  I need S3 buckets to follow security best practices
+  So that our data is protected at rest
+
+  <span class="kw">Background:</span>
+    <span class="fn">Given</span> the Terraform module has been applied
+
+  <span class="kw">Scenario:</span> <span class="type">Bucket exists</span>
+    <span class="fn">Then</span> the S3 bucket should exist in <span class="str">"us-east-1"</span>
+
+  <span class="kw">Scenario:</span> <span class="type">Bucket has encryption</span>
+    <span class="fn">Then</span> the S3 bucket should have <span class="str">"AES256"</span> encryption
+
+  <span class="kw">Scenario:</span> <span class="type">Bucket has versioning</span>
+    <span class="fn">Then</span> the S3 bucket should have versioning enabled</pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 24: BDD VPC Feature ==================== -->
+<section class="slide" id="slide-24">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 10: BDD <span class="accent">VPC</span> Feature Spec</h2>
+    <div class="code-window reveal d1">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">gherkin</div>
+      </div>
+      <div class="code-body"><pre><span class="cm"># features/vpc.feature</span>
+<span class="kw">Feature:</span> <span class="str">Production VPC</span>
+  As a platform engineer
+  I need a properly configured VPC
+  So that our workloads are network-isolated
+
+  <span class="kw">Background:</span>
+    <span class="fn">Given</span> the Terraform module has been applied
+
+  <span class="kw">Scenario:</span> <span class="type">VPC has correct CIDR</span>
+    <span class="fn">Then</span> the VPC CIDR block should be <span class="str">"10.0.0.0/16"</span>
+
+  <span class="kw">Scenario:</span> <span class="type">VPC has three subnets</span>
+    <span class="fn">Then</span> the VPC should have <span class="str">3</span> subnets
+
+  <span class="kw">Scenario:</span> <span class="type">VPC has DNS support</span>
+    <span class="fn">Then</span> the VPC should have DNS support enabled</pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 25: BDD Step Definitions ==================== -->
+<section class="slide" id="slide-25">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Demo 10: BDD <span class="accent">Step Definitions</span> in Go</h2>
+    <p class="slide-subtitle reveal d1"><strong>godog</strong> = Cucumber for Go &nbsp;|&nbsp; <strong>Terratest</strong> = AWS assertions</p>
+    <div class="code-window reveal d2">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">go</div>
+      </div>
+      <div class="code-body"><pre><span class="kw">func</span> (s *<span class="type">S3TestContext</span>) <span class="fn">theTerraformModuleHasBeenApplied</span>(ctx <span class="type">context.Context</span>) <span class="type">error</span> {
+  t := <span class="fn">GetTestingT</span>(ctx)
+  terraform.<span class="fn">InitAndApply</span>(t, s.TerraformOptions)
+  s.BucketName = terraform.<span class="fn">Output</span>(t, s.TerraformOptions, <span class="str">"bucket_name"</span>)
+  <span class="kw">return</span> <span class="type">nil</span>
+}
+
+<span class="kw">func</span> (s *<span class="type">S3TestContext</span>) <span class="fn">theS3BucketShouldHaveVersioningEnabled</span>(ctx <span class="type">context.Context</span>) <span class="type">error</span> {
+  t := <span class="fn">GetTestingT</span>(ctx)
+  v := terraaws.<span class="fn">GetS3BucketVersioning</span>(t, <span class="str">"us-east-1"</span>, s.BucketName)
+  <span class="kw">if</span> v != <span class="str">"Enabled"</span> {
+    <span class="kw">return</span> fmt.<span class="fn">Errorf</span>(<span class="str">"expected Enabled, got %s"</span>, v)
+  }
+  <span class="kw">return</span> <span class="type">nil</span>
+}
+
+<span class="kw">func</span> <span class="fn">InitializeScenario</span>(ctx *<span class="type">godog.ScenarioContext</span>) {
+  s := &amp;<span class="type">S3TestContext</span>{}
+  ctx.<span class="fn">Given</span>(<span class="str">`the Terraform module has been applied`</span>, s.theTerraformModuleHasBeenApplied)
+  ctx.<span class="fn">Then</span>(<span class="str">`the S3 bucket should have versioning enabled`</span>, s.theS3BucketShouldHaveVersioningEnabled)
+}</pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 26: Comparison Table ==================== -->
+<section class="slide" id="slide-26">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">CloudFormation vs Terraform <span class="accent">Testing</span></h2>
+    <div class="code-window reveal d1">
+      <div class="code-header">
+        <div class="code-dots"><span></span><span></span><span></span></div>
+        <div class="code-lang">comparison</div>
+      </div>
+      <div class="code-body" style="padding:0;">
+        <table class="terminal-table">
+          <thead>
+            <tr>
+              <th>Aspect</th>
+              <th>CloudFormation</th>
+              <th>Terraform</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Static Analysis</td><td>cfn-lint, checkov, cfn-guard</td><td>validate, tflint, tfsec</td></tr>
+            <tr><td>Pre-deployment</td><td>TaskCat lint, Guard</td><td>OPA, Sentinel</td></tr>
+            <tr><td>Integration</td><td>Custom scripts, TaskCat</td><td>Terratest (mature)</td></tr>
+            <tr><td>Ecosystem</td><td>Growing</td><td>More mature</td></tr>
+            <tr><td>Learning Curve</td><td>Lower</td><td>Higher (Go required)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 27: When to Use Each ==================== -->
+<section class="slide" id="slide-27">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">When to Use <span class="accent">Each Test Type</span></h2>
+    <div class="card-grid cols-3 reveal d1">
+      <div class="card">
+        <div class="card-label">Always</div>
+        <div class="card-title">Static Analysis</div>
+        <div class="card-text">Run on every commit. Fast feedback. Catches 80% of issues. Zero cost.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Recommended</div>
+        <div class="card-title">Policy Testing</div>
+        <div class="card-text">Enforce standards. Run in CI/CD. Before production.</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Selective</div>
+        <div class="card-title">Integration Testing</div>
+        <div class="card-text">Critical infrastructure. Before major releases. Complex scenarios.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 28: Real-World Strategy ==================== -->
+<section class="slide" id="slide-28">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Real-World <span class="accent">Testing Strategy</span></h2>
+    <div class="pipeline reveal d1">
+      <div class="pipeline-stage">
+        <div class="pipeline-stage-title">Pre-commit</div>
+        <ul>
+          <li>terraform validate</li>
+          <li>terraform fmt -check</li>
+          <li>tflint</li>
+        </ul>
+      </div>
+      <div class="pipeline-stage">
+        <div class="pipeline-stage-title">CI/CD Pipeline</div>
+        <ul>
+          <li>Security scanning (tfsec/checkov)</li>
+          <li>Policy validation (OPA)</li>
+          <li>Integration tests for critical paths</li>
+        </ul>
+      </div>
+      <div class="pipeline-stage">
+        <div class="pipeline-stage-title">Before Production</div>
+        <ul>
+          <li>Full integration test suite</li>
+          <li>Manual review of plan output</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 29: Common Pitfalls ==================== -->
+<section class="slide" id="slide-29">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Common <span class="accent">Pitfalls</span></h2>
+    <ul class="bullet-list">
+      <li class="emoji-bullet reveal d1"><span class="emoji" style="color:var(--red-dot);">&#x274C;</span> <strong>Over-testing</strong> &mdash; Not every resource needs integration tests</li>
+      <li class="emoji-bullet reveal d2"><span class="emoji" style="color:var(--red-dot);">&#x274C;</span> <strong>Under-testing</strong> &mdash; No tests = playing Russian roulette in production</li>
+      <li class="emoji-bullet reveal d3"><span class="emoji" style="color:var(--red-dot);">&#x274C;</span> <strong>Ignoring costs</strong> &mdash; Integration tests deploy real resources &mdash; set budgets</li>
+      <li class="emoji-bullet reveal d4"><span class="emoji" style="color:var(--red-dot);">&#x274C;</span> <strong>Not cleaning up</strong> &mdash; Failed tests can leave orphaned resources</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 30: Best Practices ==================== -->
+<section class="slide" id="slide-30">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Testing <span class="accent">Best Practices</span></h2>
+    <ul class="bullet-list">
+      <li class="emoji-bullet reveal d1"><span class="emoji" style="color:var(--accent);">&#x2705;</span> <strong>Start with static analysis</strong> &mdash; Quick wins, easy to implement</li>
+      <li class="emoji-bullet reveal d2"><span class="emoji" style="color:var(--accent);">&#x2705;</span> <strong>Use parallel execution</strong> &mdash; Speed up integration tests</li>
+      <li class="emoji-bullet reveal d3"><span class="emoji" style="color:var(--accent);">&#x2705;</span> <strong>Test in isolated accounts</strong> &mdash; Avoid contaminating production</li>
+      <li class="emoji-bullet reveal d4"><span class="emoji" style="color:var(--accent);">&#x2705;</span> <strong>Use meaningful test names</strong> &mdash; TestS3BucketHasEncryption not Test1</li>
+      <li class="emoji-bullet reveal d5"><span class="emoji" style="color:var(--accent);">&#x2705;</span> <strong>Keep tests focused</strong> &mdash; One assertion per test when possible</li>
+      <li class="emoji-bullet reveal d6"><span class="emoji" style="color:var(--accent);">&#x2705;</span> <strong>Version your tests</strong> &mdash; Store with infrastructure code</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 31: Tools Reference ==================== -->
+<section class="slide" id="slide-31">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Tools <span class="accent">Reference</span></h2>
+    <div class="card-grid cols-3 reveal d1">
+      <div class="card">
+        <div class="card-label">CloudFormation</div>
+        <ul class="bullet-list" style="margin-top:clamp(4px,0.8vh,10px);">
+          <li>cfn-lint</li>
+          <li>checkov</li>
+          <li>cfn-guard</li>
+          <li>TaskCat</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-label">Terraform</div>
+        <ul class="bullet-list" style="margin-top:clamp(4px,0.8vh,10px);">
+          <li>tflint</li>
+          <li>tfsec</li>
+          <li>Terratest</li>
+          <li>Checkov</li>
+          <li>Open Policy Agent (OPA)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-label">BDD</div>
+        <ul class="bullet-list" style="margin-top:clamp(4px,0.8vh,10px);">
+          <li>godog (Cucumber for Go)</li>
+          <li>Gherkin feature files</li>
+          <li>Terratest step definitions</li>
+          <li>ServerSpec</li>
+        </ul>
+      </div>
+    </div>
+    <p class="slide-subtitle reveal d2" style="margin-top:clamp(12px,2vh,24px);text-align:center;">All tools available on GitHub and package managers</p>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 32: Key Takeaways ==================== -->
+<section class="slide" id="slide-32">
+  <div class="slide-inner">
+    <h2 class="slide-title reveal">Key <span class="accent">Takeaways</span></h2>
+    <div class="steps">
+      <div class="step-item reveal d1">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>Testing IaC is not optional</strong> &mdash; Infrastructure failures are expensive</div>
+      </div>
+      <div class="step-item reveal d2">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>Layer your tests</strong> &mdash; Static &rarr; Policy &rarr; Integration</div>
+      </div>
+      <div class="step-item reveal d3">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>Start simple</strong> &mdash; Linting first, integration tests for critical paths</div>
+      </div>
+      <div class="step-item reveal d4">
+        <div class="step-num">4</div>
+        <div class="step-text"><strong>Automate everything</strong> &mdash; Tests are worthless if they're not run</div>
+      </div>
+      <div class="step-item reveal d5">
+        <div class="step-num">5</div>
+        <div class="step-text"><strong>TDD works for infrastructure</strong> &mdash; Write tests first, then code</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SLIDE 33: Discussion ==================== -->
+<section class="slide" id="slide-33">
+  <div class="slide-inner center-text">
+    <h2 class="big-text reveal">Let's <span style="color:var(--accent);">Discuss</span></h2>
+    <p class="slide-subtitle reveal d1" style="text-align:center;margin-top:clamp(12px,2vh,24px);margin-bottom:clamp(20px,3vh,36px);">What does your current IaC testing look like? What's working — or not?</p>
+    <ul class="bullet-list reveal d2" style="display:inline-block;text-align:left;">
+      <li class="emoji-bullet"><span class="emoji">💬</span>What testing gaps are you dealing with today?</li>
+      <li class="emoji-bullet"><span class="emoji">🔧</span>Any tools or approaches you'd push back on?</li>
+      <li class="emoji-bullet"><span class="emoji">🚀</span>What would you adopt first from what we covered?</li>
+    </ul>
+    <div class="terminal-prompt reveal d3" style="text-align:center;margin-top:clamp(20px,3vh,36px);">
+      <span class="prompt-symbol">$</span>
+      <span class="prompt-text">read -p "Your thoughts: " feedback</span>
+      <span class="cursor"></span>
+    </div>
+  </div>
+</section>
+
+<script>
+(function() {
+  'use strict';
+
+  const TOTAL = 33;
+  let currentSlide = 0;
+
+  // ===== Build nav dots =====
+  const navDots = document.getElementById('nav-dots');
+  for (let i = 0; i < TOTAL; i++) {
+    const dot = document.createElement('button');
+    dot.className = 'nav-dot';
+    dot.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+    dot.dataset.index = i;
+    dot.addEventListener('click', () => goToSlide(i));
+    navDots.appendChild(dot);
+  }
+
+  const slides = document.querySelectorAll('.slide');
+  const dots = document.querySelectorAll('.nav-dot');
+  const progressBar = document.getElementById('progress-bar');
+  const slideCounter = document.getElementById('slide-counter');
+
+  // ===== Update UI =====
+  function updateUI(index) {
+    currentSlide = index;
+    const pct = ((index + 1) / TOTAL) * 100;
+    progressBar.style.width = pct + '%';
+    slideCounter.textContent =
+      String(index + 1).padStart(2, '0') + ' / ' + String(TOTAL).padStart(2, '0');
+    dots.forEach((d, i) => d.classList.toggle('active', i === index));
+  }
+
+  // ===== Navigate =====
+  function goToSlide(index) {
+    if (index < 0 || index >= TOTAL) return;
+    slides[index].scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // ===== Intersection Observer =====
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          const idx = Array.from(slides).indexOf(entry.target);
+          if (idx !== -1) updateUI(idx);
+        }
+      });
+    },
+    { threshold: 0.5 }
+  );
+  slides.forEach((s) => observer.observe(s));
+
+  // ===== Keyboard Navigation =====
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+      e.preventDefault();
+      goToSlide(currentSlide + 1);
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      e.preventDefault();
+      goToSlide(currentSlide - 1);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      goToSlide(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      goToSlide(TOTAL - 1);
+    }
+  });
+
+  // ===== Touch / Swipe =====
+  let touchStartY = 0;
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => {
+    touchStartY = e.changedTouches[0].screenY;
+    touchStartX = e.changedTouches[0].screenX;
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    const dy = e.changedTouches[0].screenY - touchStartY;
+    const dx = e.changedTouches[0].screenX - touchStartX;
+    // Only trigger if vertical swipe is dominant
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 50) {
+      if (dy < 0) goToSlide(currentSlide + 1);
+      else goToSlide(currentSlide - 1);
+    }
+  }, { passive: true });
+
+  // ===== Init =====
+  updateUI(0);
+  slides[0].classList.add('visible');
+})();
+</script>
+</body>
+</html>

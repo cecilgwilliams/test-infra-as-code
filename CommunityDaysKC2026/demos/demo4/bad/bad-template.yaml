@@ -1,0 +1,18 @@
+# bad-template.yaml
+# Intentionally broken CloudFormation template for demo purposes.
+# Run: cfn-lint bad-template.yaml
+# Expected errors:
+#   E3045: AccessControl requires at least one OwnershipControl configured
+#   E3030: "Public" is not a valid enum value for AccessControl
+#   W3045: AccessControl is a legacy property, use AWS::S3::BucketPolicy instead
+#   E3002: BucketPolicy is not a valid property of AWS::S3::Bucket
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: S3 bucket with intentional errors (demo)
+
+Resources:
+  MyBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Public  # Invalid enum value (valid values: Private, PublicRead, etc.)
+      BucketPolicy: my-bucket-policy  # Invalid property (use AWS::S3::BucketPolicy resource instead)
